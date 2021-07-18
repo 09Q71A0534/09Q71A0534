@@ -23,7 +23,7 @@ class ORB:
         
         u_dates=pd.Series([d.date() for d in data.index]).unique() 
         self.data=data
-        self.ORB_parameters=pd.DataFrame(columns=['Date','ORB_High','ORB_Low','Buy_trigger','Short_trigger','Close_3pm','PnL','StopLoss_Hit'],index=range(u_dates.shape[0]))
+        self.ORB_parameters=pd.DataFrame(columns=['Date','ORB_High','ORB_Low','Buy_trigger','Short_trigger','Close','PnL','StopLoss_Hit'],index=range(u_dates.shape[0]))
        #filling the missing values with 0's
         self.ORB_parameters=self.ORB_parameters.fillna(0)
         
@@ -34,11 +34,11 @@ class ORB:
         self.ORB_parameters['Buy_trigger']   = self.ORB_parameters['Buy_trigger'].astype(float)
         self.ORB_parameters['Short_trigger'] = self.ORB_parameters['Short_trigger'].astype(float)
         self.ORB_parameters['PnL']           = self.ORB_parameters['PnL'].astype(float)
-        self.ORB_parameters['Close_3pm']     = self.ORB_parameters['Close_3pm'].astype(float)
+        self.ORB_parameters['Close']         = self.ORB_parameters['Close'].astype(float)
 
     
     ##Private method
-    def __get_ORB_parameters(self,intraday_data,index,date):
+    def __get_ORB_parameters(self,intraday_data,index,date,Close_time):
              
         try:
 
@@ -52,15 +52,22 @@ class ORB:
                 self.ORB_parameters.Buy_trigger[index]  = np.nan
                 self.ORB_parameters.ORB_High[index]     = np.nan
                 self.ORB_parameters.ORB_Low[index]      = np.nan
-                self.ORB_parameters.Close_3pm[index]    = np.nan
+                self.ORB_parameters.Close[index]        = np.nan
 
             else:
                 
                 self.ORB_parameters.Date[index]      = pd.to_datetime(date)
                 self.ORB_parameters.ORB_High[index]  = intraday_data.iloc[0].High
                 self.ORB_parameters.ORB_Low[index]   = intraday_data.iloc[0].Low
-                self.ORB_parameters.Close_3pm[index] = intraday_data.iloc[-1].Close
-            
+                
+                
+                if Close_time =='2pm':
+                    self.ORB_parameters.Close[index]     = intraday_data[intraday_data.index.time==datetime.time(14,00)].Close
+                    
+                elif Close_time =='3pm':
+                    self.ORB_parameters.Close[index]     = intraday_data.iloc[-1].Close                   
+               
+                                    
                 if len(intraday_data[intraday_data['Close'].gt(self.ORB_parameters.iloc[index].ORB_High)==True])> 0:
                     self.ORB_parameters.Buy_trigger[index]=self.ORB_parameters.iloc[index].ORB_High               
 
@@ -74,11 +81,11 @@ class ORB:
                     self.ORB_parameters.StopLoss_Hit[index]='NA'
                 
                 elif self.ORB_parameters.iloc[index].Buy_trigger !=0 and self.ORB_parameters.iloc[index].Short_trigger ==0:
-                    self.ORB_parameters.PnL[index]=intraday_data.iloc[-1].Close-self.ORB_parameters.iloc[index].Buy_trigger
+                    self.ORB_parameters.PnL[index]=self.ORB_parameters.Close[index]-self.ORB_parameters.iloc[index].Buy_trigger
                     self.ORB_parameters.StopLoss_Hit[index]='No'
                 
                 elif self.ORB_parameters.iloc[index].Short_trigger !=0 and self.ORB_parameters.iloc[index].Buy_trigger ==0:
-                    self.ORB_parameters.PnL[index]=self.ORB_parameters.iloc[index].Short_trigger-intraday_data.iloc[-1].Close
+                    self.ORB_parameters.PnL[index]=self.ORB_parameters.iloc[index].Short_trigger-self.ORB_parameters.Close[index]
                     self.ORB_parameters.StopLoss_Hit[index]='No'
                 
                 elif self.ORB_parameters.iloc[index].Buy_trigger !=0 and self.ORB_parameters.iloc[index].Short_trigger !=0:
@@ -89,13 +96,13 @@ class ORB:
             print ("This variable is not defined") 
     
     ##Public method
-    def get_ORB_parameters(self):
+    def get_ORB_parameters(self,Close_time):
         #make using of the method written with the slicing logic to get ORB_parameters df
         u_dates=pd.Series([d.date() for d in self.data.index]).unique()
         #for i in u_dates:
              #n=self.data[i.strftime("%m/%d/%Y")]['High'].count()
              #[self.__get_ORB_parameters(self.data[i:i+n],math.floor(i/n)) for i in range(0,self.data.shape[0],n)]
-        [self.__get_ORB_parameters(self.data[val.strftime("%m/%d/%Y")],idx,val) for idx, val in enumerate(u_dates)]
+        [self.__get_ORB_parameters(self.data[val.strftime("%m/%d/%Y")],idx,val,Close_time) for idx, val in enumerate(u_dates)]
         return self.ORB_parameters
 
 class resample:
